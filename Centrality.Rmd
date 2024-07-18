@@ -1,0 +1,219 @@
+---
+title: "Identifying the Most Central Folks in a Network"
+author: "James D. Wilson and Melanie Baybay"
+date: "7/11/2017"
+output: html_document
+---
+
+
+## Network Analysis Setup
+
+Two important packages that are commonly used for network analysis include `igraph` and `statnet`. Full documentation on `igraph` is available at http://igraph.org/redirect.html, including functions in the package for \texttt{Python}, \texttt{R} and \texttt{C}. 
+
+Since we've previously installed these packages, let's begin by loading them into our library.
+
+```{r, echo = TRUE, eval = TRUE}
+library(igraph)
+library(statnet)
+library(Matrix)
+
+```
+
+## EXAMPLE 1: Zachary's Karate Club Network
+### Download Data and Convert to Matrix
+```{r, echo = TRUE, eval = TRUE}
+#download raw edgelist
+karate.data <- read.table("https://raw.githubusercontent.com/jdwilson4/Network-Analysis-I/master/Data/karate.txt", sep = " ", header = TRUE, stringsAsFactors = FALSE)
+#convert data to matrix
+karate.edgelist <- matrix(unlist(karate.data), ncol = 2) + 1
+```
+
+### Convert Network Edge Data to 'igraph' Objects
+```{r, echo = TRUE, eval = TRUE}
+#general igraph (defaults to directed)
+karate.igraph <- graph.edgelist(karate.edgelist)
+#undirected igraph
+karate.undirected.graph <- graph.edgelist(karate.edgelist, directed = FALSE)
+#adjacency matrix from igraph object
+karate.adjacency <- as_adj(karate.igraph)
+
+```
+
+### Adjacency Matrix Visualization
+```{r, echo = TRUE, eval = TRUE}
+image(Matrix(karate.adjacency))
+
+```
+
+---
+
+##Network Centrality Measures and Visualization
+###Create network from edge list
+```{r, echo = TRUE, eval = TRUE}
+karate.network <- network(karate.edgelist)
+# known labels
+group.labels <- c(1,1,1,1,1,1,1,1,1,2,1,1,1,1,2,2,1,1,2,1,2,1,2,2,2,2,2,2,2,2,2,2,2,2) 
+plot(karate.network, main = paste("Zachary's Karate Club"), usearrows = TRUE, edge.col = "grey50", vertex.col = group.labels)
+
+```
+```{r, echo = TRUE, eval = TRUE}
+#store the node and edge coordinates
+x <- plot(karate.network, main = paste("Zachary's Karate Club"), usearrows = TRUE, edge.col = "grey50", vertex.col = group.labels)
+
+#change the size of each vertex according to out-degree
+plot(karate.network, main = paste("Out-Degree Centrality"), usearrows = TRUE, vertex.cex = rowSums(as.matrix(karate.adjacency)) + 1, edge.col = "grey50", coord = x, vertex.col = group.labels)
+
+#change the size of each vertex according to in-degree
+plot(karate.network, main = paste("In-Degree Centrality"), usearrows = TRUE, vertex.cex = colSums(as.matrix(karate.adjacency)) + 1, edge.col = "grey50", coord = x, vertex.col = group.labels)
+```
+
+###Calculate In-Degree, Out-Degree, Eigenvector, Betweenness, and Closeness Centralities
+- **in-degree centrality:** number of neighbors that point to a node in a directed network
+- **out-degree centrality:** number of neighbors that a node points to in a directed network
+- **eigenvector centrality:** measures the importance of node based on how influential its neighbors are to the network
+```{r, echo = TRUE, eval = TRUE}
+#in degree centrality
+in.degree.centrality <- colSums(as.matrix(karate.adjacency)) + 1
+
+#out degree centrality
+out.degree.centrality <- rowSums(as.matrix(karate.adjacency)) + 1
+
+#eigenvector centrality
+eigenvector.centrality <- eigen_centrality(karate.igraph, directed = FALSE)$vector
+```
+- **betweenness centrality:** based on shortest paths, it represents the degree to which nodes lie between one another 
+- **closeness centrality: ** average length of the shortest paths from a node to all other nodes in the network
+
+
+First, let's identify what the shortest paths are between each pair of nodes. The following treats shortest path calculations as the shortest path of the corresponding undirected graph.
+```{r, echo = TRUE, eval = TRUE}
+shortest.distances <- distances(karate.igraph, mode = "all") 
+
+#network diameter: the longest shortest path that is not infinite
+max(shortest.distances[which(shortest.distances < Inf)])
+
+#normalized betweenness centrality
+betweenness.centrality <- estimate_betweenness(karate.igraph, directed = TRUE, cutoff = 10)
+
+#closeness centrality
+closeness.centrality <- estimate_closeness(karate.igraph, mode = "total", normalized = FALSE, cutoff = 10)
+```
+
+###Plot Network According to Centrality Measures
+```{r, echo = TRUE}
+par(mfrow = c(2,3))
+
+#plot original network 
+plot(karate.network, main = "Zachary's Karate Network", usearrows = TRUE, edge.col = "grey50", coord = x, vertex.col = group.labels)
+
+#plot in-degree
+plot(karate.network, main = paste("In-Degree Centrality"), usearrows = TRUE, vertex.cex = in.degree.centrality, edge.col = "grey50", coord = x, vertex.col = group.labels)
+
+#plot out-degree
+plot(karate.network, main = paste("Out-Degree Centrality"), usearrows = TRUE, vertex.cex = out.degree.centrality, edge.col = "grey50", coord = x, vertex.col = group.labels)
+
+#plot eigenvector
+plot(karate.network, main = paste("Eigenvector Centrality"), usearrows = TRUE, vertex.cex = eigenvector.centrality*4 + 1, edge.col = "grey50", coord = x, vertex.col = group.labels)
+
+#plot betweenness
+plot(karate.network, main = paste("Betweenness Centrality"), usearrows = TRUE, vertex.cex = betweenness.centrality / 2 + 1, edge.col = "grey50", coord = x, vertex.col = group.labels)
+
+#plot closeness
+plot(karate.network, main = paste("Closeness Centrality"), usearrows = TRUE, vertex.cex = closeness.centrality * 150 + 1, edge.col = "grey50", coord = x, vertex.col = group.labels)
+
+
+```
+
+## EXAMPLE 2: Political Blogs Network
+### Download Data and Convert to Matrix
+```{r, echo = TRUE, eval = TRUE}
+#download raw edgelist
+pblog.data <- read.table("https://raw.githubusercontent.com/jdwilson4/Network-Analysis-I/master/Data/polblogs.txt", sep = " ", header = TRUE, stringsAsFactors = FALSE)
+pblog.edgelist <- as.matrix(pblog.data) + 1
+
+pblog.labels <- as.matrix(read.table("https://raw.githubusercontent.com/jdwilson4/Network-Analysis-I/master/Data/polblogs_labels.txt", header = FALSE, stringsAsFactors = FALSE))
+
+# set colors 
+# 0 --> 4 = blue
+pblog.labels <- replace(pblog.labels, pblog.labels == 0, 4)
+# 0 --> 2 = red
+pblog.labels <- replace(pblog.labels, pblog.labels == 1, 2)
+
+
+```
+
+### Convert Network Edge Data
+```{r, echo = TRUE, eval = TRUE}
+# create igraph from edgelist
+pblog.igraph <- graph.edgelist(pblog.edgelist)
+# adjacency matrix from igraph
+pblog.adjacency <- as_adj(pblog.igraph)
+
+# create statnet object from edgelist
+pblog.network <- network(pblog.edgelist)
+plot(pblog.network, main = paste("Political Blog Network"), usearrows = TRUE, edge.col = "grey50", vertex.col = pblog.labels)
+
+# remove isolates
+connected.nodes <- degree(pblog.network) >= 1
+sub.pblog.igraph <- induced.subgraph(pblog.igraph, V(pblog.igraph)[connected.nodes])
+sub.pblog.edgelist <- as_edgelist(sub.pblog.igraph)
+sub.pblog.adj <- as_adjacency_matrix(sub.pblog.igraph)
+
+# convert to statnet network
+sub.pblog.network <- network(sub.pblog.edgelist)
+
+# subset labels of connected nodes
+sub.labels <- subset(pblog.labels, degree(pblog.network) >= 1)
+
+# plot subnetwork
+sub.pblog.x <- plot(sub.pblog.network, main=paste("Political Blog Subnetwork"), usearrows=TRUE, edge.col = "grey50", vertex.col=sub.labels)
+sub.pblog.x
+
+```
+
+---
+
+
+##Network Centrality Measures and Visualization
+
+###Calculate In-Degree, Out-Degree, Eigenvector, Betweenness, and Closeness Centralities
+```{r, echo = TRUE, eval = TRUE}
+#in degree centrality
+in.degree.centrality <- colSums(as.matrix(sub.pblog.adj))
+
+#out degree centrality
+out.degree.centrality <- rowSums(as.matrix(sub.pblog.adj))
+
+#eigenvector centrality
+eigenvector.centrality <- eigen_centrality(sub.pblog.igraph, directed = FALSE)$vector
+
+#normalized betweenness centrality
+betweenness.centrality <- estimate_betweenness(sub.pblog.igraph, directed = TRUE, cutoff = 10)
+
+#closeness centrality
+closeness.centrality <- estimate_closeness(sub.pblog.igraph, mode = "total", normalized = FALSE, cutoff = 10)
+```
+
+###Plot Network According to Centrality Measures
+```{r, echo = TRUE}
+par(mfrow = c(2,3))
+
+#plot original network 
+plot(sub.pblog.network, main = paste("Political Blog Subnetwork"), usearrows = TRUE, edge.col = "grey50", coord = sub.pblog.x, vertex.col = sub.labels)
+
+#plot in-degree
+plot(sub.pblog.network, main = paste("In-Degree Centrality"), usearrows = TRUE, vertex.cex = in.degree.centrality / 50, edge.col = "grey50", coord = sub.pblog.x, vertex.col = sub.labels)
+
+#plot out-degree
+plot(sub.pblog.network, main = paste("Out-Degree Centrality"), usearrows = TRUE, vertex.cex = out.degree.centrality / 50, edge.col = "grey50", coord = sub.pblog.x, vertex.col = sub.labels)
+
+#plot eigenvector
+plot(sub.pblog.network, main = paste("Eigenvector Centrality"), usearrows = TRUE, vertex.cex = eigenvector.centrality*4 + 1, edge.col = "grey50", coord = sub.pblog.x, vertex.col = sub.labels)
+
+#plot betweenness
+plot(sub.pblog.network, main = paste("Betweenness Centrality"), usearrows = TRUE, vertex.cex = betweenness.centrality / 15000, edge.col = "grey50", coord = sub.pblog.x, vertex.col = sub.labels)
+
+#plot closeness
+plot(sub.pblog.network, main = paste("Closeness Centrality"), usearrows = TRUE, vertex.cex = closeness.centrality * 150 + 1, edge.col = "grey50", coord = sub.pblog.x, vertex.col = sub.labels)
+
+```
